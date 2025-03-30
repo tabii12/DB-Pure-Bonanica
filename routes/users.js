@@ -1,7 +1,7 @@
 var express = require('express');
 var router = express.Router();
 
-const { register, login ,verifyToken, getUser} = require('../controllers/userController');
+const { register, login ,toggleStatus , changeRole} = require('../controllers/userController');
 
 //Đăng ký
 router.post('/register', register);
@@ -9,7 +9,10 @@ router.post('/register', register);
 //Đăng nhập
 router.post('/login', login);
 
-//Lấy thông tin 1 user theo token
-router.get('/userinfo', verifyToken, getUser);
+// Chuyển trạng thái user
+router.put("/toggle-status/:userId", toggleStatus);
+
+// Chuyển quyền user
+router.put("/change-role/:userId", changeRole);
 
 module.exports = router;

@@ -1,132 +1,78 @@
-//chèn multer để upload file
-const multer = require('multer');
-const storage = multer.diskStorage({
-  destination: function(req, file, cb){
-    cb(null, './public/images')
-  },
-  filename: function(req, file, cb){
-    cb(null, file.originalname)
-  }
-})
-const checkfile = (req, file, cb) => {
-  if(!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)){
-    return cb(new Error('Bạn chỉ được upload file ảnh'))
-  }
-  return cb(null, true)
-}
-const upload = multer({storage: storage, fileFilter: checkfile})
+const User = require("../models/userModel");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
-////////////////////////////
-const userModel = require('../models/userModel');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const generateToken = (user) => {
+    return jwt.sign({ id:user._id, role: user.role }, "SECRET_KEY", { expiresIn: "1d" });
+};
 
-const register = [upload.single('img'), async (req, res) => {
+const register = async (req, res) => {
     try {
-        // Kiểm tra email đã tồn tại chưa bằng hàm findOne()
-        const checkUser = await userModel.findOne({
-            email: req.body.email
-        });
-        if (checkUser) {
-            throw new Error('Email đã tồn tại');
-        }
-        // Mã hóa mật khẩu bằng bcrypt
-        const salt = await bcrypt.genSalt(10);
-        const hashPassword = await bcrypt.hash(req.body.password, salt);
-        // Tạo một instance mới của userModel
-        const newUser = new userModel({
-            email: req.body.email,
-            password: hashPassword
-        });
-        // Lưu vào database bằng hàm save()
-        const data = await newUser.save();
-        res.json(data);
+        const { name, phone, email, password } = req.body;
+
+        const existingUser = await User.findOne({ email });
+        if (existingUser) return res.status(400).json({ message: "Email đã tồn tại!" });
+
+        const newUser = new User({ name, phone, email, password});
+        await newUser.save();
+
+        res.status(201).json({ message: "Đăng ký thành công!", user: newUser });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: "Lỗi server!", error });
     }
-}
-]
+};
 
-const login = [upload.single('img'), async (req, res) => {
+const login = async (req, res) => {
     try {
-        // Kiểm tra email có tồn tại không
-        console.log(req.body);
-        const checkUser = await userModel.findOne({
-            email: req.body.email
-        });
-        console.log(checkUser);
-        if (!checkUser) {
-            throw new Error('Email không tồn tại');
-        }
-        // So sánh mật khẩu
-        const isMatch = await bcrypt.compare(req.body.password, checkUser.password);
-        if (!isMatch) {
-            throw new Error('Mật khẩu không đúng');
-        }
-        // Tạo token với mã bí mật là 'secretkey' và thời gian sống là 1 giờ
-        const token = jwt.sign({ id: checkUser._id}, 'conguoiyeuchua', {expiresIn: '1h' });
-        res.json(token);
+        const { email, password } = req.body;
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(400).json({ message: "Email hoặc mật khẩu không đúng!" });
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) return res.status(400).json({ message: "Email hoặc mật khẩu không đúng!"});
+
+        const token = generateToken(user);
+
+        res.json({ message: "Đăng nhập thành công!", token, user });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: "Lỗi server!", error });
     }
-}
-]
+};
 
-//Bảo mật token
-const verifyToken = (req, res, next) => {
-    // Lấy token từ header
-    const token = req.headers.authorization.slice(7);
-    console.log(token);
-    if (!token) {
-        return res.status(403).json({ message: 'Không có token' });
-    }
-    // Xác thực token với mã bí mật
-    jwt.verify(token, 'conguoiyeuchua', (err, decoded) => {
-        if (err) {
-            if (err.name === 'TokenExpiredError') {
-                return res.status(401).json({ message: 'Token đã hết hạn' });
-            } else if (err.name === 'JsonWebTokenError') {
-                return res.status(401).json({ message: 'Token không hợp lệ' });
-            }
-            return res.status(401).json({ message: 'Lỗi xác thực token' });
-        }
-        // decoded chứa thông tin user đã mã hóa trong token và lưu vào req
-        req.userId = decoded.id; 
-        next();
-    });
-}
-
-//lấy thông tin user khi có token
-const getUser = async (req, res) => {
+const toggleStatus = async (req, res) => {
     try {
-        const user = await userModel.findById(req.userId, { password: 0 });
-        if (!user) {
-            throw new Error('Không tìm thấy user');
-        }
-        res.json(user);
+        const { userId } = req.params;
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: "User không tồn tại" });
+
+        user.status = user.status === "active" ? "inactive" : "active";
+        await user.save();
+
+        res.json({ message: "Chuyển trạng thái thành công", status: user.status });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: "Lỗi server!", error });
     }
-}
+};
 
-//xác thực admin 
-const verifyAdmin = async (req, res, next) => {
+const changeRole = async (req, res) => {
     try {
-        // Lấy thông tin user từ id lưu trong req khi đã xác thực token
-        const user= await userModel.findById(req.userId);
-        console.log(user);
-        console.log(user.role);
-        if (!user) {
-            throw new Error('Không tìm thấy user');
-        }
-        if (user.role !== 'admin') {
-            throw new Error('Không có quyền truy cập');
-        }
-        next();
-    }
-    catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-}
+        const { userId } = req.params;
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
-module.exports = { register , login , getUser, verifyToken, verifyAdmin};
+        user.role = user.role === "user" ? "admin" : "user";
+        await user.save();
+
+        res.json({ message: "Chuyển quyền thành công", role: user.role });
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi server", error });
+    }
+};
+
+module.exports = {
+    register,
+    login,
+    toggleStatus,
+    changeRole,
+}
