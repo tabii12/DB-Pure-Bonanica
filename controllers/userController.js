@@ -1,3 +1,22 @@
+//chèn multer để upload file
+const multer = require('multer');
+const storage = multer.diskStorage({
+  destination: function(req, file, cb){
+    cb(null, './public/images')
+  },
+  filename: function(req, file, cb){
+    cb(null, file.originalname)
+  }
+})
+const checkfile = (req, file, cb) => {
+  if(!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)){
+    return cb(new Error('Bạn chỉ được upload file ảnh'))
+  }
+  return cb(null, true)
+}
+const upload = multer({storage: storage, fileFilter: checkfile})
+
+////////////////////////////
 const userModel = require('../models/userModel');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
