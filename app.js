@@ -1,7 +1,21 @@
 const mongoose = require('mongoose');
-mongoose.connect('mongodb://localhost:27017/DB_Pure_Botanica')
-    .then(() => console.log('MongoDB connected'))
-    .catch(err => console.log(err));
+require('dotenv').config(); // Load biến môi trường từ .env
+
+const mongoURI = process.env.MONGO_URI;
+
+if (!mongoURI) {
+    console.error('❌ Lỗi: MONGO_URI chưa được thiết lập trong biến môi trường.');
+    process.exit(1);
+}
+
+mongoose.connect(mongoURI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+}).then(() => {
+    console.log('✅ Kết nối MongoDB thành công');
+}).catch(err => {
+    console.error('❌ Lỗi kết nối MongoDB:', err);
+});
 
 var cors = require('cors'); 
 var createError = require('http-errors');
@@ -13,7 +27,7 @@ var logger = require('morgan');
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var categoriesRouter = require('./routes/categories');
-var sub_categoriesRouter = require('./routes/sub_categories');
+var sub_categoriesRouter = require('./routes/sub_categories');  
 var productsRouter = require('./routes/products');
 
 var app = express();
