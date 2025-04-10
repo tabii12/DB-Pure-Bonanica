@@ -10,6 +10,23 @@ const getAllProducts = async (req, res) => {
     }
 };
 
+const getProductById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const product = await Product.findById(id).populate("sub_category");
+
+        if (!product) {
+            return res.status(404).json({ message: "Không tìm thấy sản phẩm!" });
+        }
+
+        res.status(200).json(product);
+    } catch (error) {
+        console.error("Lỗi khi lấy sản phẩm theo ID:", error);
+        res.status(500).json({ message: "Lỗi server!" });
+    }
+};
+
 module.exports = {
     getAllProducts,
+    getProductById,
 };
